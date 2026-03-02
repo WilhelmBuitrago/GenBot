@@ -1,0 +1,42 @@
+service_name,description,region,mission,price,currency
+Mantenimiento,Diario,,,3.00,USD
+Mantenimiento,Semanal,,,9.00,USD
+Mantenimiento,Quincenal,,,17.00,USD
+Mantenimiento,Mensual,,,30.00,USD
+Abismo,Pisos 1 - 8,,,10.00,USD
+Abismo,Pisos 9 - 12,,,10.00,USD
+Abismo,Pisos 1 - 12,,,20.00,USD
+Teatro Fantasía,Pisos 1 - 8,,,10.00,USD
+Teatro Fantasía,Pisos 9 - 10,,,5.00,USD
+Teatro Fantasía,Pisos 1 - 10,,,20.00,USD
+Exploraciones,Monstadt (Solo exploración),Monstadt,false,16.00,USD
+Exploraciones,Liyue (Solo exploración),Liyue,false,20.00,USD
+Exploraciones,Liyue (Exploración con misiones),Liyue,true,30.00,USD
+Exploraciones,Inazuma (Solo exploración),Inazuma,false,20.00,USD
+Exploraciones,Inazuma (Exploración con misiones),Inazuma,true,48.00,USD
+Exploraciones,Sumeru bosque (Solo exploración),Sumeru bosque,false,30.00,USD
+Exploraciones,Sumeru bosque (Exploración con misiones),Sumeru bosque,true,70.00,USD
+Exploraciones,Fontaine (Solo exploración),Fontaine,false,30.00,USD
+Exploraciones,Fontaine (Exploración con misiones),Fontaine,true,85.00,USD
+Exploraciones,Natlan (Solo exploración),Natlan,false,30.00,USD
+Exploraciones,Natlan (Exploración con misiones),Natlan,true,60.00,USD
+Exploraciones,Nod Krai (Solo exploración),Nod Krai,false,25.00,USD
+Exploraciones,Nod Krai (Exploración con misiones),Nod Krai,true,45.00,USD
+Exploraciones,Espinadragón (Solo exploración),Espinadragón,false,14.00,USD
+Exploraciones,Espinadragón (Exploración con misiones),Espinadragón,true,16.00,USD
+Exploraciones,Enkanomiya (Solo exploración),Enkanomiya,false,16.00,USD
+Exploraciones,Enkanomiya (Exploración con misiones),Enkanomiya,true,30.00,USD
+Exploraciones,Sima (2 niveles) (Solo exploración),Sima (2 niveles),false,20.00,USD
+Exploraciones,Sima (2 niveles) (Exploración con misiones),Sima (2 niveles),true,28.00,USD
+Exploraciones,Desiertos (Solo exploración),Desiertos,false,25.00,USD
+Exploraciones,Desiertos (Exploración con misiones),Desiertos,true,55.00,USD
+Exploraciones,Chenyu (Solo exploración),Chenyu,false,18.00,USD
+Exploraciones,Chenyu (Exploración con misiones),Chenyu,true,30.00,USD
+Exploraciones,Mar de Antaño (Solo exploración),Mar de Antaño,false,15.00,USD
+Exploraciones,Mar de Antaño (Exploración con misiones),Mar de Antaño,true,40.00,USD
+Misiones y Eventos,Evento principal,,,10.00,USD
+Misiones y Eventos,Evento secundario,,,5.00,USD
+Misiones y Eventos,Misión Legendaria/ Encuentros,,,4.00,USD
+Misiones y Eventos,Misión de Mundo (largas),,,5.00,USD
+Misiones y Eventos,Misión de Mundo (cortas),,,1.00,USD
+Misiones y Eventos,Búsqueda 76 Aranaras,,,20.00,USD
