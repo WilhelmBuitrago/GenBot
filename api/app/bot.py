@@ -3,6 +3,8 @@ import os
 from typing import Optional, Set
 
 import discord
+from discord import app_commands
+from discord.ext import commands
 import httpx
 from dotenv import load_dotenv
 
@@ -33,14 +35,29 @@ def parse_id_set(raw: str) -> Set[int]:
     return result
 
 
-def normalize_chat_url(url: str) -> str:
+def normalize_base_url(url: str) -> str:
     url = url.strip()
     if not url:
         return url
-    url = url.rstrip("/")
-    if url.endswith("/chat"):
-        return url
-    return f"{url}/chat"
+    return url.rstrip("/")
+
+
+def build_chat_url(base_url: str) -> str:
+    base = normalize_base_url(base_url)
+    if not base:
+        return base
+    if base.endswith("/chat"):
+        return base
+    return f"{base}/chat"
+
+
+def build_prices_url(base_url: str) -> str:
+    base = normalize_base_url(base_url)
+    if not base:
+        return base
+    if base.endswith("/prices"):
+        return base
+    return f"{base}/prices"
 
 
 def should_process_message(
@@ -72,79 +89,134 @@ def split_message(text: str, limit: int = 2000) -> list[str]:
     return chunks
 
 
-class GenBotClient(discord.Client):
-    def __init__(self, *, chat_url: str, api_key: str, timeout: float) -> None:
-        intents = discord.Intents.default()
-        intents.message_content = True
-        super().__init__(intents=intents)
-        self.chat_url = normalize_chat_url(chat_url)
-        self.api_key = api_key
-        self.http_client = httpx.AsyncClient(timeout=timeout)
-        self.allowed_channels = parse_id_set(ALLOWED_CHANNEL_IDS)
-        self.allowed_users = parse_id_set(ALLOWED_USER_IDS)
-        self.blocked_channels = parse_id_set(BLOCKED_CHANNEL_IDS)
-        self.blocked_users = parse_id_set(BLOCKED_USER_IDS)
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
+http_client = httpx.AsyncClient(timeout=API_TIMEOUT)
+allowed_channels = parse_id_set(ALLOWED_CHANNEL_IDS)
+allowed_users = parse_id_set(ALLOWED_USER_IDS)
+blocked_channels = parse_id_set(BLOCKED_CHANNEL_IDS)
+blocked_users = parse_id_set(BLOCKED_USER_IDS)
 
-    async def close(self) -> None:
-        await self.http_client.aclose()
-        await super().close()
 
-    async def on_ready(self) -> None:
-        logger.info("Logged in as %s", self.user)
+@bot.event
+async def on_ready() -> None:
+    await tree.sync()
+    logger.info("Logged in as %s", bot.user)
 
-    async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot:
-            return
-        if not message.content or not message.content.strip():
-            return
-        if len(message.content) > 2000:
+
+@bot.event
+async def on_message(message: discord.Message) -> None:
+    if message.author.bot:
+        return
+    if not message.content or not message.content.strip():
+        return
+    if len(message.content) > 2000:
+        await message.channel.send("El mensaje excede el maximo de 2000 caracteres.")
+        return
+    if not should_process_message(
+        message.channel.id,
+        message.author.id,
+        allowed_channels,
+        allowed_users,
+        blocked_channels,
+        blocked_users,
+    ):
+        return
+
+    payload = {
+        "user_id": f"discord:{message.author.id}",
+        "message": message.content,
+    }
+    headers = {}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+
+    try:
+        response = await http_client.post(
+            build_chat_url(CHAT_API_URL), json=payload, headers=headers
+        )
+        if response.status_code != 200:
+            logger.warning("API error %s: %s", response.status_code, response.text)
             await message.channel.send(
-                "El mensaje excede el maximo de 2000 caracteres."
+                "No pude obtener respuesta del servicio en este momento."
             )
             return
-        if not should_process_message(
-            message.channel.id,
-            message.author.id,
-            self.allowed_channels,
-            self.allowed_users,
-            self.blocked_channels,
-            self.blocked_users,
-        ):
+        data = response.json()
+        text = data.get("response", "")
+        if not text:
+            await message.channel.send("No se recibio una respuesta valida.")
+            return
+        for chunk in split_message(text):
+            await message.channel.send(chunk)
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        logger.warning("Request error: %s", exc)
+        await message.channel.send("No pude conectar con el servicio en este momento.")
+    except Exception as exc:
+        logger.exception("Unexpected error: %s", exc)
+        await message.channel.send("Ocurrio un error inesperado.")
+
+    await bot.process_commands(message)
+
+
+@tree.command(name="prices", description="Obtener tabla de precios")
+@app_commands.describe(
+    region="Filtrar por region",
+    service="Filtrar por servicio",
+)
+async def prices(
+    interaction: discord.Interaction,
+    region: Optional[str] = None,
+    service: Optional[str] = None,
+) -> None:
+    await interaction.response.defer()
+    headers = {}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+
+    params = {}
+    if region:
+        params["region"] = region
+    if service:
+        params["service"] = service
+
+    try:
+        response = await http_client.get(
+            build_prices_url(CHAT_API_URL), params=params, headers=headers
+        )
+        if response.status_code != 200:
+            logger.warning("API error %s: %s", response.status_code, response.text)
+            await interaction.followup.send(
+                "No pude obtener los precios en este momento."
+            )
             return
 
-        payload = {
-            "user_id": f"discord:{message.author.id}",
-            "message": message.content,
-        }
-        headers = {}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        data = response.json().get("prices", [])
+        if not data:
+            await interaction.followup.send("No se encontraron precios.")
+            return
 
-        try:
-            response = await self.http_client.post(
-                self.chat_url, json=payload, headers=headers
+        embed = discord.Embed(title="Tabla de Precios", color=discord.Color.blue())
+        for item in data:
+            item_service = str(item.get("service", "")).strip() or "Sin servicio"
+            item_region = str(item.get("region", "")).strip() or "Sin region"
+            item_price = str(item.get("price", "")).strip() or "0"
+            embed.add_field(
+                name=f"{item_service} ({item_region})",
+                value=f"{item_price} monedas",
+                inline=False,
             )
-            if response.status_code != 200:
-                logger.warning("API error %s: %s", response.status_code, response.text)
-                await message.channel.send(
-                    "No pude obtener respuesta del servicio en este momento."
-                )
-                return
-            data = response.json()
-            text = data.get("response", "")
-            if not text:
-                await message.channel.send("No se recibio una respuesta valida.")
-                return
-            for chunk in split_message(text):
-                await message.channel.send(chunk)
-        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-            logger.warning("Request error: %s", exc)
-            await message.channel.send(
-                "No pude conectar con el servicio en este momento."
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error: %s", exc)
-            await message.channel.send("Ocurrio un error inesperado.")
+
+        await interaction.followup.send(embed=embed)
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        logger.warning("Request error: %s", exc)
+        await interaction.followup.send(
+            "No pude conectar con el servicio en este momento."
+        )
+    except Exception as exc:
+        logger.exception("Unexpected error: %s", exc)
+        await interaction.followup.send("Ocurrio un error inesperado.")
 
 
 async def start_bot() -> None:
@@ -153,7 +225,7 @@ async def start_bot() -> None:
     if not CHAT_API_URL:
         raise RuntimeError("Missing CHAT_API_URL")
 
-    client = GenBotClient(
-        chat_url=CHAT_API_URL, api_key=LLM_API_KEY, timeout=API_TIMEOUT
-    )
-    await client.start(TOKEN)
+    try:
+        await bot.start(TOKEN)
+    finally:
+        await http_client.aclose()

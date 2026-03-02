@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +41,37 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/prices")
+    async def prices(
+        service: Optional[str] = None, region: Optional[str] = None
+    ) -> dict[str, list[dict[str, str]]]:
+        loader = CSVSheetLoader(settings.data_dir)
+        raw_services = loader.load_services()
+
+        service_filter = (service or "").strip().lower()
+        region_filter = (region or "").strip().lower()
+
+        results: list[dict[str, str]] = []
+        for row in raw_services:
+            row_service = str(row.get("service_name", "")).strip()
+            row_region = str(row.get("region", "")).strip()
+
+            if service_filter and row_service.lower() != service_filter:
+                continue
+            if region_filter and row_region.lower() != region_filter:
+                continue
+
+            results.append(
+                {
+                    "service": row_service,
+                    "region": row_region,
+                    "description": str(row.get("description", "")).strip(),
+                    "price": str(row.get("price", "")).strip(),
+                }
+            )
+
+        return {"prices": results}
 
     @app.exception_handler(NormalizationError)
     async def normalization_handler(
