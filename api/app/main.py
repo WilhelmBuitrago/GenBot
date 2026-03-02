@@ -37,6 +37,10 @@ def create_app() -> FastAPI:
 
     app.include_router(chat_router)
 
+    @app.get("/")
+    async def root() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.exception_handler(NormalizationError)
     async def normalization_handler(
         request: Request, exc: NormalizationError
