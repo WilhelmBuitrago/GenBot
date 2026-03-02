@@ -200,11 +200,17 @@ async def prices(
         embed = discord.Embed(title="Tabla de Precios", color=discord.Color.blue())
         for item in data:
             item_service = str(item.get("service", "")).strip() or "Sin servicio"
-            item_region = str(item.get("region", "")).strip() or "Sin region"
+            item_region = str(item.get("region", "")).strip()
             item_price = str(item.get("price", "")).strip() or "0"
+            item_description = str(item.get("description", "")).strip()
+
+            detail = item_region or item_description or "Sin detalle"
+            value_lines = [f"{item_price} USD"]
+            if item_region and item_description and item_description != item_region:
+                value_lines.append(item_description)
             embed.add_field(
-                name=f"{item_service} ({item_region})",
-                value=f"{item_price} monedas",
+                name=f"{item_service} ({detail})",
+                value="\n".join(value_lines),
                 inline=False,
             )
 
