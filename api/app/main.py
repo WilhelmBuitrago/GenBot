@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import FastAPI, Request
@@ -17,6 +18,7 @@ from app.services.normalizer import (
     normalize_services,
 )
 from app.services.sheet_loader import CSVSheetLoader
+from api.app.bot import start_bot
 
 logger = logging.getLogger("genbot")
 
@@ -77,6 +79,7 @@ def create_app() -> FastAPI:
             llm_client=llm_client,
         )
         logger.info("Application initialized")
+        asyncio.create_task(start_bot())
 
     return app
 
