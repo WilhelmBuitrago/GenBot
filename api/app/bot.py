@@ -102,6 +102,7 @@ blocked_users = parse_id_set(BLOCKED_USER_IDS)
 active_chats: Set[int] = set()
 chat_timeouts: Dict[int, asyncio.Task] = {}
 CHAT_INACTIVITY_SECONDS = 10 * 60
+GUILD_ID = 1477844619227041815
 
 
 def _cancel_timeout(user_id: int) -> None:
@@ -125,7 +126,8 @@ def _schedule_timeout(user_id: int) -> None:
 
 @bot.event
 async def on_ready() -> None:
-    await tree.sync()
+    # await tree.sync()
+    await tree.sync(guild=discord.Object(id=GUILD_ID))
     logger.info("Logged in as %s", bot.user)
 
 
@@ -191,7 +193,11 @@ async def on_message(message: discord.Message) -> None:
         await message.channel.send("Ocurrio un error inesperado.")
 
 
-@tree.command(name="prices", description="Obtener tabla de precios")
+@tree.command(
+    name="prices",
+    description="Obtener tabla de precios",
+    guild=discord.Object(id=GUILD_ID),
+)
 @app_commands.describe(
     region="Filtrar por region",
     service="Filtrar por servicio",
@@ -256,7 +262,11 @@ async def prices(
         await interaction.followup.send("Ocurrio un error inesperado.")
 
 
-@tree.command(name="chat", description="Iniciar conversacion privada")
+@tree.command(
+    name="chat",
+    description="Iniciar conversacion privada",
+    guild=discord.Object(id=GUILD_ID),
+)
 async def chat(interaction: discord.Interaction) -> None:
     user = interaction.user
 
