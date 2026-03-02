@@ -18,7 +18,7 @@ from app.services.normalizer import (
     normalize_services,
 )
 from app.services.sheet_loader import CSVSheetLoader
-from api.app.bot import start_bot
+from bot import start_bot
 
 logger = logging.getLogger("genbot")
 
