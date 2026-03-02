@@ -1,13 +1,24 @@
 services:
-  app:
-    build: .
-    ports:
-      - "8000:3000"
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
     volumes:
-      - ./app:/app/app
-      - ./data:/app/data
+      - ./api/app:/app/app
+      - ./api/data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
     env_file:
       - .env
+    restart: unless-stopped
+  dbot:
+    build:
+      context: ./DBot
+      dockerfile: Dockerfile
+    environment:
+      - CHAT_API_URL=http://api:3000
+    env_file:
+      - .env
+    depends_on:
+      - api
     restart: unless-stopped
