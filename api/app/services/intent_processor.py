@@ -378,7 +378,7 @@ async def build_prompt(
     intent = await detect_intent_llm(safe_message, llm_client)
     logger.info(
         "Intent detected",
-        extra={"intent": intent, "message": _normalize_text(safe_message)},
+        extra={"intent": intent, "user_message": _normalize_text(safe_message)},
     )
 
     selected_service, options = await select_service(
