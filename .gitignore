@@ -1,7 +1,6 @@
 .env
 *.env
-notebooks/*
-__pycache__/*
+notebooks/
+__pycache__/
 *.pyc
 *.pyo
-.pyc
