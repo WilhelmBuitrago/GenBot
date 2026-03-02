@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import os
-from typing import Optional, Set
+from typing import Dict, Optional, Set
 
 import discord
 from discord import app_commands
@@ -98,6 +99,28 @@ allowed_channels = parse_id_set(ALLOWED_CHANNEL_IDS)
 allowed_users = parse_id_set(ALLOWED_USER_IDS)
 blocked_channels = parse_id_set(BLOCKED_CHANNEL_IDS)
 blocked_users = parse_id_set(BLOCKED_USER_IDS)
+active_chats: Set[int] = set()
+chat_timeouts: Dict[int, asyncio.Task] = {}
+CHAT_INACTIVITY_SECONDS = 10 * 60
+
+
+def _cancel_timeout(user_id: int) -> None:
+    task = chat_timeouts.pop(user_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+def _schedule_timeout(user_id: int) -> None:
+    _cancel_timeout(user_id)
+
+    async def _timeout() -> None:
+        try:
+            await asyncio.sleep(CHAT_INACTIVITY_SECONDS)
+            active_chats.discard(user_id)
+        except asyncio.CancelledError:
+            return
+
+    chat_timeouts[user_id] = asyncio.create_task(_timeout())
 
 
 @bot.event
@@ -115,18 +138,24 @@ async def on_message(message: discord.Message) -> None:
     if len(message.content) > 2000:
         await message.channel.send("El mensaje excede el maximo de 2000 caracteres.")
         return
-    if not should_process_message(
-        message.channel.id,
-        message.author.id,
-        allowed_channels,
-        allowed_users,
-        blocked_channels,
-        blocked_users,
-    ):
+
+    if not isinstance(message.channel, discord.DMChannel):
+        await bot.process_commands(message)
         return
 
+    if message.content.strip().lower() == "/end":
+        active_chats.discard(message.author.id)
+        _cancel_timeout(message.author.id)
+        await message.channel.send("Chat cerrado. Si quieres reabrirlo, usa /chat.")
+        return
+
+    if message.author.id not in active_chats:
+        return
+
+    _schedule_timeout(message.author.id)
+
     payload = {
-        "user_id": f"discord:{message.author.id}",
+        "user_id": str(message.author.id),
         "message": message.content,
     }
     headers = {}
@@ -153,11 +182,13 @@ async def on_message(message: discord.Message) -> None:
     except (httpx.RequestError, httpx.HTTPStatusError) as exc:
         logger.warning("Request error: %s", exc)
         await message.channel.send("No pude conectar con el servicio en este momento.")
+    except discord.Forbidden:
+        active_chats.discard(message.author.id)
+        _cancel_timeout(message.author.id)
+        logger.warning("DMs blocked for user %s", message.author.id)
     except Exception as exc:
         logger.exception("Unexpected error: %s", exc)
         await message.channel.send("Ocurrio un error inesperado.")
-
-    await bot.process_commands(message)
 
 
 @tree.command(name="prices", description="Obtener tabla de precios")
@@ -225,6 +256,48 @@ async def prices(
         await interaction.followup.send("Ocurrio un error inesperado.")
 
 
+@tree.command(name="chat", description="Iniciar conversacion privada")
+async def chat(interaction: discord.Interaction) -> None:
+    user = interaction.user
+
+    try:
+        await interaction.response.send_message(
+            "Te he enviado un mensaje privado ✉️",
+            ephemeral=True,
+        )
+
+        dm = await user.create_dm()
+
+        greeting = (
+            "¡Hola! 👋\n\n"
+            "Ofrecemos los siguientes servicios:\n"
+            "• Exploracion\n"
+            "• Abismo\n"
+            "• Mantenimiento de cuenta\n"
+            "• Teatro\n\n"
+            "Escribeme aqui y con gusto te ayudare.\n"
+            "Para cerrar el chat, escribe /end"
+        )
+
+        await dm.send(greeting)
+
+        active_chats.add(user.id)
+        _schedule_timeout(user.id)
+
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "No pude enviarte un mensaje privado. "
+            "Verifica que tengas los DMs habilitados.",
+            ephemeral=True,
+        )
+    except Exception:
+        await interaction.followup.send(
+            "No pude enviarte un mensaje privado. "
+            "Verifica que tengas los DMs habilitados.",
+            ephemeral=True,
+        )
+
+
 async def start_bot() -> None:
     if not TOKEN:
         raise RuntimeError("Missing DISCORD_BOT_TOKEN")
@@ -234,4 +307,7 @@ async def start_bot() -> None:
     try:
         await bot.start(TOKEN)
     finally:
+        for task in chat_timeouts.values():
+            if not task.done():
+                task.cancel()
         await http_client.aclose()
