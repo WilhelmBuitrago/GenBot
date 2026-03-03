@@ -103,6 +103,8 @@ active_chats: Set[int] = set()
 chat_timeouts: Dict[int, asyncio.Task] = {}
 CHAT_INACTIVITY_SECONDS = 10 * 60
 GUILD_ID = 1477844619227041815
+ANNOUNCE_CHANNEL_ID = 1478219059085709414
+_startup_announced = False
 
 
 def _cancel_timeout(user_id: int) -> None:
@@ -129,6 +131,26 @@ async def on_ready() -> None:
     # await tree.sync()
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     logger.info("Logged in as %s", bot.user)
+    await _announce_startup_once()
+
+
+async def _announce_startup_once() -> None:
+    global _startup_announced
+    if _startup_announced:
+        return
+    _startup_announced = True
+    await _send_system_message("Ya estoy despierto!")
+
+
+async def _send_system_message(text: str) -> None:
+    try:
+        channel = bot.get_channel(ANNOUNCE_CHANNEL_ID)
+        if channel is None:
+            channel = await bot.fetch_channel(ANNOUNCE_CHANNEL_ID)
+        if isinstance(channel, discord.abc.Messageable):
+            await channel.send(text)
+    except Exception as exc:
+        logger.warning("Failed to send system message: %s", exc)
 
 
 @bot.event
